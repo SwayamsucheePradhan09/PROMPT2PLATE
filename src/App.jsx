@@ -60,6 +60,14 @@ const getIngredientMacros = (name, quantity, unit) => {
   }
 };
 
+const getCurrentMealSlot = () => {
+  const hr = new Date().getHours();
+  if (hr >= 6 && hr < 11) return "breakfast";
+  if (hr >= 11 && hr < 15) return "lunch";
+  if (hr >= 17 && hr < 22) return "dinner";
+  return "snack";
+};
+
 export default function App() {
   // Authentication State
   const [user, setUser] = useState(null); // Initial state is null (logged out)
@@ -404,6 +412,79 @@ export default function App() {
     setCalcSearchQuery("");
   };
 
+  const handleIncrement = (itemId) => {
+    setManualListItems(prev => prev.map(item => {
+      if (item.id === itemId) {
+        const step = item.unit === "pc" || item.unit === "cloves" ? 1 : 50;
+        const newQty = item.quantity + step;
+        const dbItem = ingredientDatabase[item.name.toLowerCase()];
+        const factor = item.unit === "pc" || item.unit === "cloves" ? newQty : newQty / 100;
+        const newNutrition = {
+          calories: Math.round(dbItem.calories * factor),
+          protein: Math.round(dbItem.protein * factor * 10) / 10,
+          carbs: Math.round(dbItem.carbs * factor * 10) / 10,
+          fat: Math.round(dbItem.fat * factor * 10) / 10
+        };
+        return { ...item, quantity: newQty, calcNutrition: newNutrition };
+      }
+      return item;
+    }));
+  };
+
+  const handleDecrement = (itemId) => {
+    setManualListItems(prev => {
+      const target = prev.find(item => item.id === itemId);
+      if (!target) return prev;
+      const step = target.unit === "pc" || target.unit === "cloves" ? 1 : 50;
+      const newQty = target.quantity - step;
+      if (newQty <= 0) {
+        return prev.filter(item => item.id !== itemId);
+      }
+      return prev.map(item => {
+        if (item.id === itemId) {
+          const dbItem = ingredientDatabase[item.name.toLowerCase()];
+          const factor = item.unit === "pc" || item.unit === "cloves" ? newQty : newQty / 100;
+          const newNutrition = {
+            calories: Math.round(dbItem.calories * factor),
+            protein: Math.round(dbItem.protein * factor * 10) / 10,
+            carbs: Math.round(dbItem.carbs * factor * 10) / 10,
+            fat: Math.round(dbItem.fat * factor * 10) / 10
+          };
+          return { ...item, quantity: newQty, calcNutrition: newNutrition };
+        }
+        return item;
+      });
+    });
+  };
+
+  const scheduleCartItem = (item, day, slot) => {
+    const customMeal = {
+      id: `custom-food-${Date.now()}`,
+      title: `${item.quantity}${item.unit} of ${item.name}`,
+      description: `Logged custom food intake via Calorie Cart.`,
+      prepTimeMins: 0,
+      cookTimeMins: 0,
+      portions: 1,
+      difficulty: "easy",
+      nutrition: {
+        calories: item.calcNutrition.calories,
+        protein: item.calcNutrition.protein,
+        carbs: item.calcNutrition.carbs,
+        fat: item.calcNutrition.fat
+      },
+      dietaryTags: [],
+      ingredients: [
+        { name: item.name, quantity: item.quantity, unit: item.unit, displayText: `${item.quantity}${item.unit} ${item.name}`, category: item.category }
+      ],
+      stepsDag: []
+    };
+    setMealPlan(prev => ({
+      ...prev,
+      [`${day}-${slot}`]: customMeal
+    }));
+    setVoiceLog(v => [...v, `AI Chef: Scheduled ${item.quantity}${item.unit} of ${item.name} into ${day}'s ${slot}.`]);
+  };
+
   // Chat message submit
   const sendChatMessage = (e) => {
     e.preventDefault();
@@ -558,7 +639,7 @@ export default function App() {
               onClick={() => setActiveTab("shopping")}
             >
               <ShoppingCart size={18} />
-              Shopping List
+              Calorie Cart
             </button>
           </nav>
         </div>
@@ -1197,128 +1278,190 @@ export default function App() {
             )}
           </div>
         )}
-
-        {/* VIEW 4: SHOPPING LIST & CALORIE CALCULATOR */}
+        {/* VIEW 4: CALORIE CART */}
         {activeTab === 'shopping' && (
           <div>
-            <h2 style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }} className="gradient-text-purple">Consolidated Grocery List & Calculator</h2>
+            <h2 style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }} className="gradient-text-purple">Calorie Cart & Intake Tracker</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: '1.5rem' }}>
-              Smart aggregator that merges scheduled recipe requirements and calculates calories of custom additions.
+              Add foods you are having, adjust portions via e-commerce style controls, and schedule them directly to your logs based on real-time intake.
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '2rem' }}>
               
-              {/* Left Side: Consolidated Checklist */}
-              <div className="glass-card" style={{ padding: '2rem' }}>
+              {/* Left Column: Cart items */}
+              <div className="glass-card" style={{ padding: '2rem', height: 'fit-content' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--glass-border)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1.2rem' }}>Shopping Checklist</h3>
+                  <h3 style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <ShoppingCart size={20} style={{ color: 'var(--accent-purple)' }} />
+                    Log Intake Cart
+                  </h3>
                   <span className="nutrition-pill" style={{ background: 'var(--accent-purple-glow)', color: 'var(--accent-purple)' }}>
-                    {getConsolidatedShoppingList().length} Items
+                    {manualListItems.length} Selected Items
                   </span>
                 </div>
 
-                {(() => {
-                  const list = getConsolidatedShoppingList();
-                  const listCalories = list.reduce((acc, item) => acc + getIngredientCalories(item.name, item.quantity, item.unit), 0);
-                  const listMacros = list.reduce((acc, item) => {
-                    const macros = getIngredientMacros(item.name, item.quantity, item.unit);
-                    return {
-                      protein: acc.protein + (macros.protein || 0),
-                      carbs: acc.carbs + (macros.carbs || 0),
-                      fat: acc.fat + (macros.fat || 0)
-                    };
-                  }, { protein: 0, carbs: 0, fat: 0 });
+                {manualListItems.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {manualListItems.map((item) => {
+                      const suggestedSlot = getCurrentMealSlot();
+                      const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                      const currentDayName = daysOfWeek[new Date().getDay()];
 
-                  return (
-                    <>
-                      {list.length > 0 && (
-                        <div style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          alignItems: 'center', 
-                          background: 'var(--accent-purple-glow)', 
-                          border: '1px solid hsla(265, 85%, 62%, 0.2)', 
-                          padding: '1rem', 
-                          borderRadius: 'var(--border-radius-sm)', 
-                          marginBottom: '1.5rem' 
-                        }}>
-                          <div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>TOTAL CART CALORIES</div>
-                            <div style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-primary)' }}>{listCalories} kcal</div>
+                      return (
+                        <div 
+                          key={item.id} 
+                          className="glass-card" 
+                          style={{ 
+                            padding: '1.25rem', 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            gap: '1rem',
+                            border: '1px solid var(--glass-border)',
+                            background: 'rgba(255,255,255,0.01)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                              <span style={{ fontSize: '1.1rem', fontWeight: '700', textTransform: 'capitalize' }}>
+                                {item.name}
+                              </span>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem', textTransform: 'uppercase' }}>
+                                Category: {item.category}
+                              </div>
+                            </div>
+                            
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--accent-orange)' }}>
+                                {item.calcNutrition.calories} kcal
+                              </div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                P: {item.calcNutrition.protein}g | C: {item.calcNutrition.carbs}g | F: {item.calcNutrition.fat}g
+                              </div>
+                            </div>
                           </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>TOTAL CART MACROS</div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: '700' }}>
-                              P: {Math.round(listMacros.protein)}g | C: {Math.round(listMacros.carbs)}g | F: {Math.round(listMacros.fat)}g
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '0.75rem' }}>
+                            {/* E-commerce controls */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <button 
+                                className="filter-btn" 
+                                style={{ padding: '0.25rem 0.6rem', fontSize: '1.1rem', fontWeight: '800', borderRadius: '4px' }}
+                                onClick={() => handleDecrement(item.id)}
+                              >
+                                -
+                              </button>
+                              <strong style={{ fontSize: '1rem', minWidth: '60px', textAlign: 'center' }}>
+                                {item.quantity} {item.unit}
+                              </strong>
+                              <button 
+                                className="filter-btn" 
+                                style={{ padding: '0.25rem 0.6rem', fontSize: '1.1rem', fontWeight: '800', borderRadius: '4px' }}
+                                onClick={() => handleIncrement(item.id)}
+                              >
+                                +
+                              </button>
+                            </div>
+
+                            {/* Scheduling Advice */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                Real-Time Sug: <strong>{suggestedSlot.toUpperCase()}</strong>
+                              </span>
+                              <button 
+                                className="btn-primary" 
+                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', background: 'var(--accent-green)' }}
+                                onClick={() => scheduleCartItem(item, currentDayName, suggestedSlot)}
+                              >
+                                Add to {suggestedSlot.charAt(0).toUpperCase() + suggestedSlot.slice(1)}
+                              </button>
                             </div>
                           </div>
                         </div>
-                      )}
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '3.5rem 0', color: 'var(--text-secondary)' }}>
+                    <ShoppingCart size={48} style={{ color: 'var(--text-muted)', margin: '0 auto 1rem' }} />
+                    <h4 style={{ fontSize: '1.15rem', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>Cart is currently empty</h4>
+                    <p style={{ fontSize: '0.85rem' }}>Search for food items on the right side of the dashboard to begin logging.</p>
+                  </div>
+                )}
+              </div>
 
-                      {list.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                          {list.map((item, index) => {
-                            const itemCal = getIngredientCalories(item.name, item.quantity, item.unit);
-                            return (
-                              <label 
-                                key={index} 
-                                className="glass-card" 
-                                style={{ 
-                                  padding: '0.75rem 1rem', 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
-                                  gap: '1rem', 
-                                  cursor: 'pointer',
-                                  background: 'transparent'
-                                }}
-                              >
-                                <input type="checkbox" style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--accent-purple)' }} />
-                                <div style={{ flexGrow: 1 }}>
-                                  <span style={{ fontSize: '0.9rem', fontWeight: '500', textTransform: 'capitalize' }}>
-                                    {item.name}
-                                  </span>
-                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                                    Category: {item.category.toUpperCase()}
-                                  </div>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
-                                  <strong style={{ color: 'var(--accent-purple)', fontSize: '0.9rem' }}>
-                                    {item.quantity} {item.unit}
-                                  </strong>
-                                  <span className="nutrition-pill" style={{ fontSize: '0.65rem', padding: '0.1rem 0.3rem' }}>
-                                    {itemCal > 0 ? `${itemCal} kcal` : '-- kcal'}
-                                  </span>
-                                </div>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-secondary)' }}>
-                          <ShoppingCart size={40} style={{ color: 'var(--text-muted)', margin: '0 auto 1rem' }} />
-                          <p style={{ fontSize: '0.9rem' }}>No items in list. Add recipes to Weekly Planner or search on the right.</p>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}              </div>
-
-              {/* Right Side: Dynamic Calorie Search Calculator */}
+              {/* Right Column: Receipt Totals + Add items */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div className="glass-card" style={{ padding: '1.75rem', borderLeft: '4px solid var(--accent-purple)' }}>
+                  <h3 style={{ fontSize: '1.25rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.75rem', color: 'var(--text-primary)' }}>
+                    Intake Summary Receipt
+                  </h3>
+
+                  {(() => {
+                    const totalCals = manualListItems.reduce((sum, item) => sum + item.calcNutrition.calories, 0);
+                    const totalProtein = Math.round(manualListItems.reduce((sum, item) => sum + item.calcNutrition.protein, 0));
+                    const totalCarbs = Math.round(manualListItems.reduce((sum, item) => sum + item.calcNutrition.carbs, 0));
+                    const totalFat = Math.round(manualListItems.reduce((sum, item) => sum + item.calcNutrition.fat, 0));
+
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                          <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Total Sum Calories:</span>
+                          <span style={{ fontSize: '1.75rem', fontWeight: '900', color: 'var(--accent-orange)' }}>
+                            {totalCals} kcal
+                          </span>
+                        </div>
+
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+                            <span>Progress to daily limit</span>
+                            <span>{Math.round((totalCals / activeProfile.targetCalories) * 100)}%</span>
+                          </div>
+                          <div style={{ height: '6px', background: 'var(--bg-tertiary)', borderRadius: '3px' }}>
+                            <div style={{ width: `${Math.min((totalCals / activeProfile.targetCalories) * 100, 100)}%`, height: '100%', background: 'var(--accent-orange)', borderRadius: '3px' }}></div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', borderTop: '1px dashed var(--glass-border)', paddingTop: '1rem', fontSize: '0.85rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Total Protein:</span>
+                            <strong>{totalProtein}g / {activeProfile.targetProtein}g</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Total Carbohydrates:</span>
+                            <strong>{totalCarbs}g / {activeProfile.targetCarbs}g</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Total Fats:</span>
+                            <strong>{totalFat}g / {activeProfile.targetFat}g</strong>
+                          </div>
+                        </div>
+
+                        {manualListItems.length > 0 && (
+                          <button 
+                            className="filter-btn" 
+                            style={{ width: '100%', background: 'transparent', border: '1px solid var(--accent-orange)', color: 'var(--accent-orange)' }}
+                            onClick={() => setManualListItems([])}
+                          >
+                            Clear Cart Items
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 <div className="glass-card" style={{ padding: '1.5rem' }}>
-                  <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Flame size={20} style={{ color: 'var(--accent-orange)' }} />
-                    Calorie Search Calculator
+                  <h3 style={{ fontSize: '1.15rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Flame size={18} style={{ color: 'var(--accent-orange)' }} />
+                    Quick Search & Add
                   </h3>
                   
-                  {/* Autocomplete Input */}
-                  <div className="search-suggestions-container" style={{ marginBottom: '1rem' }}>
-                    <label className="form-label">Search Ingredient Database</label>
+                  <div className="search-suggestions-container" style={{ marginBottom: '1.5rem' }}>
                     <input 
                       type="text" 
                       className="form-input" 
                       style={{ width: '100%', background: 'var(--bg-tertiary)' }}
-                      placeholder="Search every item e.g. eggs, salmon, apple..."
+                      placeholder="Search every item e.g. eggs, paneer, apple..."
                       value={calcSearchQuery}
                       onChange={handleCalcSearchChange}
                     />
@@ -1341,11 +1484,10 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Calculator Input Parameter Fields */}
                   {selectedCalcItem ? (
                     <div style={{ background: 'var(--bg-primary)', padding: '1rem', borderRadius: 'var(--border-radius-sm)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <strong style={{ textTransform: 'capitalize', fontSize: '1.1rem' }}>{selectedCalcItem.name}</strong>
+                        <strong style={{ textTransform: 'capitalize', fontSize: '1.05rem' }}>{selectedCalcItem.name}</strong>
                         <span className="nutrition-pill">Per {selectedCalcItem.unit === 'pc' || selectedCalcItem.unit === 'cloves' ? 'piece' : '100' + selectedCalcItem.unit}</span>
                       </div>
 
@@ -1361,23 +1503,16 @@ export default function App() {
                         </div>
                         <div className="form-group" style={{ width: '80px', marginBottom: 0 }}>
                           <label className="form-label">Unit</label>
-                          <select 
-                            className="form-select-box" 
-                            value={calcUnit}
-                            onChange={(e) => setCalcUnit(e.target.value)}
-                          >
+                          <select className="form-select-box" value={calcUnit} onChange={(e) => setCalcUnit(e.target.value)}>
                             <option value={selectedCalcItem.unit}>{selectedCalcItem.unit}</option>
                           </select>
                         </div>
                       </div>
 
-                      {/* Math Result Summary */}
-                      <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                          Calculated Nutrition Results:
-                        </div>
+                      <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>PREVIEW NUTRITION:</div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                          <span style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--accent-orange)' }}>
+                          <span style={{ fontSize: '1.2,rem', fontWeight: '800', color: 'var(--accent-orange)' }}>
                             {calculateSelectedNutrition()?.calories} kcal
                           </span>
                           <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
@@ -1386,27 +1521,21 @@ export default function App() {
                         </div>
                       </div>
 
-                      <button className="btn-primary" style={{ width: '100%' }} onClick={addCalculatedItemToList}>
-                        Add to Shopping List & Planner
+                      <button className="btn-primary" style={{ width: '100%', padding: '0.75rem' }} onClick={addCalculatedItemToList}>
+                        Add to Intake Cart
                       </button>
                     </div>
                   ) : (
-                    <div style={{ padding: '1rem', textAlign: 'center', border: '1px dashed var(--glass-border)', borderRadius: 'var(--border-radius-sm)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                      Search and select an ingredient to compute real-time calorie math.
+                    <div style={{ padding: '1rem', textAlign: 'center', border: '1px dashed var(--glass-border)', borderRadius: 'var(--border-radius-sm)', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                      Search and select food items to populate calculation cards.
                     </div>
                   )}
-                </div>
-
-                {/* Database Info Card */}
-                <div className="glass-card" style={{ padding: '1.25rem', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-                  💡 <strong>Complete Search Catalog:</strong> Every item used in the platform's recipes is indexable, including raw ingredients (e.g. <i>chicken breast, sweet potato, salmon, olive oil</i>) and snack fruits (<i>apple, banana</i>) with precise USDA calorie math.
                 </div>
               </div>
 
             </div>
           </div>
         )}
-
       </div>
 
       {/* Global Add to Meal Plan Modal */}
