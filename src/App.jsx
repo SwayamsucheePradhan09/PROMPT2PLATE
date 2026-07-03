@@ -396,6 +396,8 @@ export default function App() {
   };
 
   // Add search item directly to shopping list & update calculations
+
+
   const addCalculatedItemToList = () => {
     if (!selectedCalcItem) return;
     const computedNutrition = calculateSelectedNutrition();
@@ -405,7 +407,8 @@ export default function App() {
       quantity: calcQuantity,
       unit: calcUnit,
       category: selectedCalcItem.category,
-      calcNutrition: computedNutrition
+      calcNutrition: computedNutrition,
+      baseItem: selectedCalcItem // Store the baseline stats profile
     };
 
     setManualListItems(prev => [...prev, newItem]);
@@ -418,13 +421,16 @@ export default function App() {
       if (item.id === itemId) {
         const step = item.unit === "pc" || item.unit === "cloves" ? 1 : 50;
         const newQty = item.quantity + step;
-        const dbItem = ingredientDatabase[item.name.toLowerCase()];
+        
+        // Fetch base calories and macros
+        const base = item.baseItem || ingredientDatabase[item.name.toLowerCase()] || { calories: 0, protein: 0, carbs: 0, fat: 0 };
         const factor = item.unit === "pc" || item.unit === "cloves" ? newQty : newQty / 100;
+        
         const newNutrition = {
-          calories: Math.round(dbItem.calories * factor),
-          protein: Math.round(dbItem.protein * factor * 10) / 10,
-          carbs: Math.round(dbItem.carbs * factor * 10) / 10,
-          fat: Math.round(dbItem.fat * factor * 10) / 10
+          calories: Math.round(base.calories * factor),
+          protein: Math.round(base.protein * factor * 10) / 10,
+          carbs: Math.round(base.carbs * factor * 10) / 10,
+          fat: Math.round(base.fat * factor * 10) / 10
         };
         return { ...item, quantity: newQty, calcNutrition: newNutrition };
       }
@@ -436,20 +442,23 @@ export default function App() {
     setManualListItems(prev => {
       const target = prev.find(item => item.id === itemId);
       if (!target) return prev;
+      
       const step = target.unit === "pc" || target.unit === "cloves" ? 1 : 50;
       const newQty = target.quantity - step;
       if (newQty <= 0) {
         return prev.filter(item => item.id !== itemId);
       }
+      
       return prev.map(item => {
         if (item.id === itemId) {
-          const dbItem = ingredientDatabase[item.name.toLowerCase()];
+          const base = item.baseItem || ingredientDatabase[item.name.toLowerCase()] || { calories: 0, protein: 0, carbs: 0, fat: 0 };
           const factor = item.unit === "pc" || item.unit === "cloves" ? newQty : newQty / 100;
+          
           const newNutrition = {
-            calories: Math.round(dbItem.calories * factor),
-            protein: Math.round(dbItem.protein * factor * 10) / 10,
-            carbs: Math.round(dbItem.carbs * factor * 10) / 10,
-            fat: Math.round(dbItem.fat * factor * 10) / 10
+            calories: Math.round(base.calories * factor),
+            protein: Math.round(base.protein * factor * 10) / 10,
+            carbs: Math.round(base.carbs * factor * 10) / 10,
+            fat: Math.round(base.fat * factor * 10) / 10
           };
           return { ...item, quantity: newQty, calcNutrition: newNutrition };
         }
