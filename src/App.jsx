@@ -2,14 +2,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   ChefHat, Sparkles, Calendar, Search, ShoppingCart, Play, Check, 
   RotateCcw, Plus, Clock, Coins, Flame, Trash2, Volume2, Mic, CheckSquare, 
-  HelpCircle, User, Award, Shield, AlertTriangle
+  HelpCircle, User, Award, Shield, AlertTriangle, LogOut, Key, Mail, Edit3, ArrowRight
 } from 'lucide-react';
-import { mockRecipes } from './utils/mockRecipes';
+import { mockRecipes, ingredientDatabase } from './utils/mockRecipes';
 
 export default function App() {
+  // Authentication State
+  const [user, setUser] = useState(null); // Initial state is null (logged out)
+  const [authMode, setAuthMode] = useState("login"); // login or register
+  const [authEmail, setAuthEmail] = useState("chef@prompt2plate.com");
+  const [authPassword, setAuthPassword] = useState("password123");
+  const [authName, setAuthName] = useState("Aurélia Vasser");
+
   // Profiles for personalization
   const profiles = {
-    "standard": { name: "Standard Profile", diet: [], targetCalories: 2000, targetProtein: 120, targetCarbs: 220, targetFat: 70 },
+    "standard": { name: "Standard Diet", diet: [], targetCalories: 2000, targetProtein: 120, targetCarbs: 220, targetFat: 70 },
     "keto": { name: "Keto Athlete", diet: ["low-carb", "keto"], targetCalories: 2200, targetProtein: 140, targetCarbs: 30, targetFat: 170 },
     "vegan": { name: "Vegan Family", diet: ["vegan", "vegetarian"], targetCalories: 1800, targetProtein: 75, targetCarbs: 250, targetFat: 55 }
   };
@@ -17,7 +24,7 @@ export default function App() {
   const [activeProfileKey, setActiveProfileKey] = useState("keto");
   const activeProfile = profiles[activeProfileKey];
 
-  // Navigation
+  // Navigation (Moved to Sidebar)
   const [activeTab, setActiveTab] = useState("generator");
 
   // Recipe Database & Planner
@@ -28,6 +35,16 @@ export default function App() {
     "Wednesday-dinner": mockRecipes[2],  // Vegan Buddha Bowl
     "Thursday-lunch": mockRecipes[3]     // Steak & Asparagus
   });
+
+  // Manual Shopping List additions
+  const [manualListItems, setManualListItems] = useState([]);
+
+  // Calorie Calculator Search States
+  const [calcSearchQuery, setCalcSearchQuery] = useState("");
+  const [calcSuggestions, setCalcSuggestions] = useState([]);
+  const [selectedCalcItem, setSelectedCalcItem] = useState(null);
+  const [calcQuantity, setCalcQuantity] = useState(100);
+  const [calcUnit, setCalcUnit] = useState("g");
 
   // UI state for generator modal
   const [showAddToPlanModal, setShowAddToPlanModal] = useState(false);
@@ -89,6 +106,18 @@ export default function App() {
     };
   }, [timerIntervals]);
 
+  // Handle Login & Registration Submit
+  const handleAuthSubmit = (e) => {
+    e.preventDefault();
+    if (!authEmail || !authPassword) return;
+
+    setUser({
+      email: authEmail,
+      name: authMode === "login" ? "Chef Aurélia" : authName,
+      profilePic: "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=120&h=120&fit=crop&crop=faces"
+    });
+  };
+
   // AI Generation Pipeline execution simulator
   const runAIPipeline = () => {
     if (!prompt.trim()) return;
@@ -116,13 +145,11 @@ export default function App() {
         setPipelineLogs(prev => [...prev, layer.text]);
         
         if (layer.id === 10) {
-          // Check if there is an existing recipe matching filters to simulate a realistic output
           let matchingRecipe = mockRecipes.find(r => 
             (selectedDiet ? r.dietaryTags.includes(selectedDiet) : true) &&
             r.nutrition.calories <= calorieLimit
           ) || mockRecipes[0];
 
-          // Simulate custom title modification
           const customized = {
             ...matchingRecipe,
             id: `gen-${Date.now()}`,
@@ -164,7 +191,6 @@ export default function App() {
               delete cleaned[stepId];
               return cleaned;
             });
-            // Auto finish timer
             setVoiceLog(v => [...v, `AI Chef: Timer completed for step: ${stepId}`]);
             return { ...prev, [stepId]: 0 };
           }
@@ -181,7 +207,6 @@ export default function App() {
       const updated = new Set(prev);
       updated.add(stepId);
       
-      // Stop timer if running
       if (timerIntervals[stepId]) {
         clearInterval(timerIntervals[stepId]);
         setTimerIntervals(old => {
@@ -191,7 +216,6 @@ export default function App() {
         });
       }
 
-      // Check next available steps to direct voice feedback
       const nextSteps = cookingRecipe.stepsDag.filter(step => 
         !updated.has(step.stepId) && 
         step.dependentStepIds.every(depId => updated.has(depId))
@@ -220,6 +244,15 @@ export default function App() {
         fat += recipe.nutrition.fat;
       }
     });
+
+    // Append manual items
+    manualListItems.forEach(item => {
+      calories += item.calcNutrition.calories;
+      protein += item.calcNutrition.protein;
+      carbs += item.calcNutrition.carbs;
+      fat += item.calcNutrition.fat;
+    });
+
     return { calories, protein, carbs, fat };
   };
 
@@ -238,7 +271,83 @@ export default function App() {
         });
       }
     });
+
+    // Merge manual selections
+    manualListItems.forEach(item => {
+      const key = item.name.toLowerCase();
+      if (list[key]) {
+        list[key].quantity += item.quantity;
+      } else {
+        list[key] = {
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+          category: item.category,
+          displayText: `${item.quantity}${item.unit} of ${item.name} (Calculated)`
+        };
+      }
+    });
+
     return Object.values(list);
+  };
+
+  // Calorie Calculator Search Input Handling
+  const handleCalcSearchChange = (e) => {
+    const query = e.target.value;
+    setCalcSearchQuery(query);
+
+    if (query.trim().length > 0) {
+      const keys = Object.keys(ingredientDatabase);
+      const matches = keys.filter(k => k.toLowerCase().includes(query.toLowerCase()));
+      setCalcSuggestions(matches);
+    } else {
+      setCalcSuggestions([]);
+    }
+  };
+
+  // Select Calorie Calculation Item
+  const handleSelectCalcItem = (itemName) => {
+    const item = ingredientDatabase[itemName];
+    setSelectedCalcItem({
+      name: itemName,
+      ...item
+    });
+    setCalcSearchQuery(itemName);
+    setCalcSuggestions([]);
+    setCalcUnit(item.unit);
+  };
+
+  // Perform Dynamic Nutritional Math based on selected Quantity
+  const calculateSelectedNutrition = () => {
+    if (!selectedCalcItem) return null;
+    const factor = selectedCalcItem.unit === "pc" || selectedCalcItem.unit === "cloves"
+      ? calcQuantity // multiplication for pieces
+      : calcQuantity / 100; // division for 100g weights
+
+    return {
+      calories: Math.round(selectedCalcItem.calories * factor),
+      protein: Math.round(selectedCalcItem.protein * factor * 10) / 10,
+      carbs: Math.round(selectedCalcItem.carbs * factor * 10) / 10,
+      fat: Math.round(selectedCalcItem.fat * factor * 10) / 10
+    };
+  };
+
+  // Add search item directly to shopping list & update calculations
+  const addCalculatedItemToList = () => {
+    if (!selectedCalcItem) return;
+    const computedNutrition = calculateSelectedNutrition();
+    const newItem = {
+      id: `manual-${Date.now()}`,
+      name: selectedCalcItem.name,
+      quantity: calcQuantity,
+      unit: calcUnit,
+      category: selectedCalcItem.category,
+      calcNutrition: computedNutrition
+    };
+
+    setManualListItems(prev => [...prev, newItem]);
+    setSelectedCalcItem(null);
+    setCalcSearchQuery("");
   };
 
   // Chat message submit
@@ -250,7 +359,6 @@ export default function App() {
     setChatMessages(prev => [...prev, { sender: "user", text: userMsg }]);
     setChatInput("");
 
-    // Simulate AI Chef Assistant custom responses
     setTimeout(() => {
       let reply = "";
       if (userMsg.toLowerCase().includes("remix") || userMsg.toLowerCase().includes("vegan")) {
@@ -264,61 +372,190 @@ export default function App() {
     }, 1000);
   };
 
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Platform Header */}
-      <header className="app-header">
-        <a href="#" className="logo-container" onClick={() => setActiveTab("generator")}>
-          <span className="logo-icon">🍳</span>
-          <span className="gradient-text-orange">Prompt2Plate</span>
-        </a>
-
-        {/* Navigation Tabs */}
-        <nav className="nav-links">
-          <button className={`nav-item ${activeTab === 'generator' ? 'active' : ''}`} onClick={() => setActiveTab("generator")}>
-            <ChefHat size={18} />
-            AI Chef Engine
-          </button>
-          <button className={`nav-item ${activeTab === 'planner' ? 'active' : ''}`} onClick={() => setActiveTab("planner")}>
-            <Calendar size={18} />
-            Weekly Planner
-          </button>
-          <button className={`nav-item ${activeTab === 'pantry' ? 'active' : ''}`} onClick={() => setActiveTab("pantry")}>
-            <Search size={18} />
-            Pantry Matcher
-          </button>
-          <button className={`nav-item ${activeTab === 'shopping' ? 'active' : ''}`} onClick={() => setActiveTab("shopping")}>
-            <ShoppingCart size={18} />
-            Shopping List
-          </button>
-        </nav>
-
-        {/* Active Profile Selector */}
-        <div className="user-profile-picker">
-          <div className="user-profile-label">
-            <User size={14} style={{ marginRight: '4px' }} />
-            Profile:
+  // RENDER: LOGIN/REGISTRATION SCREEN
+  if (!user) {
+    return (
+      <div className="auth-container">
+        <div className="glass-card auth-card">
+          <div className="auth-header">
+            <h1 className="auth-title">
+              <span className="logo-icon">🍳</span>
+              <span className="gradient-text-orange"> Prompt2Plate</span>
+            </h1>
+            <p className="auth-subtitle">Enterprise AI Recipe & Culinary Dashboard</p>
           </div>
-          <select 
-            className="user-profile-select" 
-            value={activeProfileKey} 
-            onChange={(e) => setActiveProfileKey(e.target.value)}
-          >
-            <option value="standard">Standard Diet</option>
-            <option value="keto">Keto Athlete</option>
-            <option value="vegan">Vegan Family</option>
-          </select>
-        </div>
-      </header>
 
-      {/* Main Content Area */}
-      <main className="app-container" style={{ flexGrow: 1 }}>
+          <div className="auth-tabs">
+            <button 
+              className={`auth-tab ${authMode === 'login' ? 'active' : ''}`}
+              onClick={() => setAuthMode('login')}
+            >
+              Sign In
+            </button>
+            <button 
+              className={`auth-tab ${authMode === 'register' ? 'active' : ''}`}
+              onClick={() => setAuthMode('register')}
+            >
+              Create Account
+            </button>
+          </div>
+
+          <form onSubmit={handleAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {authMode === 'register' && (
+              <div className="form-group">
+                <label className="form-label">Full Name</label>
+                <div style={{ position: 'relative' }}>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    style={{ width: '100%', paddingLeft: '2.5rem' }} 
+                    placeholder="Enter your name"
+                    value={authName}
+                    onChange={(e) => setAuthName(e.target.value)}
+                  />
+                  <Edit3 size={16} style={{ position: 'absolute', left: '12px', top: '14px', color: 'var(--text-muted)' }} />
+                </div>
+              </div>
+            )}
+
+            <div className="form-group">
+              <label className="form-label">Email Address</label>
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type="email" 
+                  className="form-input" 
+                  style={{ width: '100%', paddingLeft: '2.5rem' }} 
+                  placeholder="chef@prompt2plate.com"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                />
+                <Mail size={16} style={{ position: 'absolute', left: '12px', top: '14px', color: 'var(--text-muted)' }} />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type="password" 
+                  className="form-input" 
+                  style={{ width: '100%', paddingLeft: '2.5rem' }} 
+                  placeholder="••••••••"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                />
+                <Key size={16} style={{ position: 'absolute', left: '12px', top: '14px', color: 'var(--text-muted)' }} />
+              </div>
+            </div>
+
+            <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '0.5rem' }}>
+              {authMode === 'login' ? 'Sign In to Dashboard' : 'Register & Enter Dashboard'}
+              <ArrowRight size={16} />
+            </button>
+          </form>
+
+          <div style={{ fontSize: '0.75rem', textAlign: 'center', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+            💡 <strong>Quick Access Demo:</strong> Click "Sign In to Dashboard" to log in with our prefilled credential.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // RENDER: APPLICATION PORTAL WITH SIDEBAR LAYOUT
+  return (
+    <div className="app-layout">
+      {/* Sidebar Navigation */}
+      <aside className="app-sidebar">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          {/* Brand Logo */}
+          <div className="sidebar-brand">
+            <a href="#" className="logo-container" style={{ padding: 0 }} onClick={() => setActiveTab("generator")}>
+              <span className="logo-icon">🍳</span>
+              <span className="gradient-text-orange" style={{ fontSize: '1.25rem' }}>Prompt2Plate</span>
+            </a>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="sidebar-nav">
+            <button 
+              className={`sidebar-item ${activeTab === 'generator' ? 'active' : ''}`} 
+              onClick={() => setActiveTab("generator")}
+            >
+              <ChefHat size={18} />
+              AI Chef Engine
+            </button>
+            <button 
+              className={`sidebar-item ${activeTab === 'planner' ? 'active' : ''}`} 
+              onClick={() => setActiveTab("planner")}
+            >
+              <Calendar size={18} />
+              Weekly Planner
+            </button>
+            <button 
+              className={`sidebar-item ${activeTab === 'pantry' ? 'active' : ''}`} 
+              onClick={() => setActiveTab("pantry")}
+            >
+              <Search size={18} />
+              Pantry Matcher
+            </button>
+            <button 
+              className={`sidebar-item ${activeTab === 'shopping' ? 'active' : ''}`} 
+              onClick={() => setActiveTab("shopping")}
+            >
+              <ShoppingCart size={18} />
+              Shopping List
+            </button>
+          </nav>
+        </div>
+
+        {/* Profile Pickers & Logout section */}
+        <div className="sidebar-profile">
+          <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+            <span className="user-profile-label" style={{ fontSize: '0.65rem' }}>Active Profile</span>
+            <select 
+              className="form-select-box" 
+              style={{ padding: '0.4rem 0.75rem', fontSize: '0.8rem', background: 'var(--bg-primary)' }}
+              value={activeProfileKey} 
+              onChange={(e) => setActiveProfileKey(e.target.value)}
+            >
+              <option value="standard">Standard Diet</option>
+              <option value="keto">Keto Athlete</option>
+              <option value="vegan">Vegan Family</option>
+            </select>
+          </div>
+
+          <div className="sidebar-profile-info">
+            <img 
+              src={user.profilePic} 
+              alt="User" 
+              style={{ width: '32px', height: '32px', borderRadius: '50%', border: '1px solid var(--accent-orange)' }}
+            />
+            <div style={{ flexGrow: 1, overflow: 'hidden' }}>
+              <div style={{ fontWeight: '600', fontSize: '0.85rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                {user.name}
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                {activeProfile.name}
+              </div>
+            </div>
+            <button 
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              onClick={() => setUser(null)}
+              title="Sign Out"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Page Content */}
+      <div className="main-content">
         
         {/* VIEW 1: AI CHEF ENGINE */}
         {activeTab === 'generator' && (
           <div style={{ display: 'grid', gridTemplateColumns: cookingRecipe ? '1fr' : '1fr 1.2fr', gap: '2rem' }}>
-            
-            {/* If cooking session is active, overlay full topological dashboard */}
             {cookingRecipe ? (
               <div className="glass-card" style={{ padding: '2rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '1rem' }}>
@@ -337,7 +574,6 @@ export default function App() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
-                  {/* Left Side: Steps DAG */}
                   <div>
                     <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', color: 'var(--text-secondary)' }}>Topological Step Timeline</h3>
                     <div className="dag-nodes-container">
@@ -382,7 +618,6 @@ export default function App() {
                               </div>
                               
                               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                {/* Timer Controls */}
                                 {step.durationSeconds > 0 && !done && (
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <span className={`timer-box ${timerRunning ? 'running' : ''}`}>{displayTime}</span>
@@ -396,7 +631,6 @@ export default function App() {
                                   </div>
                                 )}
 
-                                {/* Completion trigger */}
                                 {!done && (
                                   <button 
                                     className="btn-primary" 
@@ -415,7 +649,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Right Side: Voice Transcript & Assistant Panel */}
                   <div className="glass-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', height: 'fit-content' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignContent: 'center' }}>
                       <h4 style={{ fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -505,7 +738,6 @@ export default function App() {
                     </button>
                   </div>
 
-                  {/* 10-Layer Visualizer */}
                   {isGenerating && (
                     <div className="glass-card" style={{ padding: '1.5rem' }}>
                       <h3 style={{ fontSize: '1rem', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
@@ -563,7 +795,6 @@ export default function App() {
                         </p>
                       </div>
 
-                      {/* Recipe Stats */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', borderTop: '1px solid var(--glass-border)', borderBottom: '1px solid var(--glass-border)', padding: '1rem 0' }}>
                         <div style={{ textAlign: 'center' }}>
                           <Clock size={16} style={{ color: 'var(--text-muted)', marginBottom: '0.25rem' }} />
@@ -587,7 +818,6 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Macronutrients progress */}
                       <div>
                         <h3 style={{ fontSize: '1.1rem', marginBottom: '0.75rem' }}>Macronutrient Profile</h3>
                         <div style={{ display: 'flex', gap: '2rem' }}>
@@ -621,7 +851,6 @@ export default function App() {
                         </div>
                       </div>
 
-                      {/* Ingredients */}
                       <div>
                         <h3 style={{ fontSize: '1.1rem', marginBottom: '0.75rem' }}>Ingredients Standardized</h3>
                         <ul style={{ listStyleType: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -634,7 +863,6 @@ export default function App() {
                         </ul>
                       </div>
 
-                      {/* Action buttons */}
                       <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
                         <button className="btn-primary" style={{ flexGrow: 1 }} onClick={() => setCookingRecipe(generatedRecipe)}>
                           <Play size={16} /> Start Cooking (DAG Timeline)
@@ -652,7 +880,6 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Chef Assistant Chat Box */}
                   <div className="glass-card chat-window" style={{ marginTop: '2rem', padding: '1rem' }}>
                     <div style={{ borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <Sparkles size={18} style={{ color: 'var(--accent-purple)' }} />
@@ -695,7 +922,6 @@ export default function App() {
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>Schedule and audit daily caloric intakes automatically according to target macro guidelines.</p>
               </div>
               
-              {/* Macro summaries */}
               <div className="glass-card" style={{ padding: '1rem 1.5rem', display: 'flex', gap: '1.5rem' }}>
                 <div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>WEEKLY CALORIES</div>
@@ -714,10 +940,8 @@ export default function App() {
               </div>
             </div>
 
-            {/* Calendar Grid */}
             <div className="planner-grid">
               {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => {
-                // Calculate day-specific macros
                 let dayCal = 0;
                 ["breakfast", "lunch", "dinner", "snack"].forEach(slot => {
                   const recipe = mealPlan[`${day}-${slot}`];
@@ -786,7 +1010,6 @@ export default function App() {
             </p>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
-              {/* Left Side: Pantry Inputs */}
               <div className="glass-card" style={{ padding: '1.5rem', height: 'fit-content' }}>
                 <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Active Inventory</h3>
                 
@@ -828,7 +1051,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Right Side: Matched Recipes */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <h3 style={{ fontSize: '1.2rem', color: 'var(--text-secondary)' }}>Matching Recipes Index</h3>
 
@@ -887,8 +1109,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Substitution modal popup */}
-            {substitutionModal && (
+            {pantry && substitutionModal && (
               <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div className="glass-card" style={{ padding: '2rem', maxWidth: '500px', width: '100%', background: 'var(--bg-secondary)' }}>
                   <h3 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: 'var(--accent-orange)' }}>Substitution Advisor</h3>
@@ -923,63 +1144,168 @@ export default function App() {
           </div>
         )}
 
-        {/* VIEW 4: SHOPPING LIST */}
+        {/* VIEW 4: SHOPPING LIST & CALORIE CALCULATOR */}
         {activeTab === 'shopping' && (
           <div>
-            <h2 style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }} className="gradient-text-purple">Consolidated Grocery List</h2>
+            <h2 style={{ fontSize: '1.75rem', marginBottom: '0.5rem' }} className="gradient-text-purple">Consolidated Grocery List & Calculator</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: '1.5rem' }}>
-              Smart aggregator that dynamically merges similar ingredients required across all meal planner assignments.
+              Smart aggregator that merges scheduled recipe requirements and calculates calories of custom additions.
             </p>
 
-            <div className="glass-card" style={{ padding: '2rem', maxWidth: '600px', margin: '0 auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--glass-border)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.2rem' }}>Shopping Checklist</h3>
-                <span className="nutrition-pill" style={{ background: 'var(--accent-purple-glow)', color: 'var(--accent-purple)' }}>
-                  {getConsolidatedShoppingList().length} Unique Items
-                </span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2rem' }}>
+              
+              {/* Left Side: Consolidated Checklist */}
+              <div className="glass-card" style={{ padding: '2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--glass-border)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
+                  <h3 style={{ fontSize: '1.2rem' }}>Shopping Checklist</h3>
+                  <span className="nutrition-pill" style={{ background: 'var(--accent-purple-glow)', color: 'var(--accent-purple)' }}>
+                    {getConsolidatedShoppingList().length} Items
+                  </span>
+                </div>
+
+                {getConsolidatedShoppingList().length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {getConsolidatedShoppingList().map((item, index) => (
+                      <label 
+                        key={index} 
+                        className="glass-card" 
+                        style={{ 
+                          padding: '0.75rem 1rem', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '1rem', 
+                          cursor: 'pointer',
+                          background: 'transparent'
+                        }}
+                      >
+                        <input type="checkbox" style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--accent-purple)' }} />
+                        <div style={{ flexGrow: 1 }}>
+                          <span style={{ fontSize: '0.9rem', fontWeight: '500', textTransform: 'capitalize' }}>
+                            {item.name}
+                          </span>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                            Category: {item.category.toUpperCase()}
+                          </div>
+                        </div>
+                        <strong style={{ color: 'var(--accent-purple)', fontSize: '0.9rem' }}>
+                          {item.quantity} {item.unit}
+                        </strong>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-secondary)' }}>
+                    <ShoppingCart size={40} style={{ color: 'var(--text-muted)', margin: '0 auto 1rem' }} />
+                    <p style={{ fontSize: '0.9rem' }}>No items in list. Add recipes to Weekly Planner or search on the right.</p>
+                  </div>
+                )}
               </div>
 
-              {getConsolidatedShoppingList().length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {getConsolidatedShoppingList().map((item, index) => (
-                    <label 
-                      key={index} 
-                      className="glass-card" 
-                      style={{ 
-                        padding: '1rem', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '1rem', 
-                        cursor: 'pointer',
-                        background: 'transparent'
-                      }}
-                    >
-                      <input type="checkbox" style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--accent-purple)' }} />
-                      <div style={{ flexGrow: 1 }}>
-                        <span style={{ fontSize: '0.95rem', fontWeight: '500', textTransform: 'capitalize' }}>
-                          {item.name}
-                        </span>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                          Category: {item.category.toUpperCase()}
+              {/* Right Side: Dynamic Calorie Search Calculator */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div className="glass-card" style={{ padding: '1.5rem' }}>
+                  <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Flame size={20} style={{ color: 'var(--accent-orange)' }} />
+                    Calorie Search Calculator
+                  </h3>
+                  
+                  {/* Autocomplete Input */}
+                  <div className="search-suggestions-container" style={{ marginBottom: '1rem' }}>
+                    <label className="form-label">Search Ingredient Database</label>
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      style={{ width: '100%', background: 'var(--bg-tertiary)' }}
+                      placeholder="Search every item e.g. eggs, salmon, apple..."
+                      value={calcSearchQuery}
+                      onChange={handleCalcSearchChange}
+                    />
+
+                    {calcSuggestions.length > 0 && (
+                      <div className="search-suggestions-list">
+                        {calcSuggestions.map(suggestion => (
+                          <div 
+                            key={suggestion} 
+                            className="search-suggestion-item"
+                            onClick={() => handleSelectCalcItem(suggestion)}
+                          >
+                            <span style={{ textTransform: 'capitalize' }}>{suggestion}</span>
+                            <span className="search-suggestion-item-category">
+                              {ingredientDatabase[suggestion].category}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Calculator Input Parameter Fields */}
+                  {selectedCalcItem ? (
+                    <div style={{ background: 'var(--bg-primary)', padding: '1rem', borderRadius: 'var(--border-radius-sm)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ textTransform: 'capitalize', fontSize: '1.1rem' }}>{selectedCalcItem.name}</strong>
+                        <span className="nutrition-pill">Per {selectedCalcItem.unit === 'pc' || selectedCalcItem.unit === 'cloves' ? 'piece' : '100' + selectedCalcItem.unit}</span>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        <div className="form-group" style={{ flexGrow: 1, marginBottom: 0 }}>
+                          <label className="form-label">Quantity</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            value={calcQuantity}
+                            onChange={(e) => setCalcQuantity(parseFloat(e.target.value) || 0)}
+                          />
+                        </div>
+                        <div className="form-group" style={{ width: '80px', marginBottom: 0 }}>
+                          <label className="form-label">Unit</label>
+                          <select 
+                            className="form-select-box" 
+                            value={calcUnit}
+                            onChange={(e) => setCalcUnit(e.target.value)}
+                          >
+                            <option value={selectedCalcItem.unit}>{selectedCalcItem.unit}</option>
+                          </select>
                         </div>
                       </div>
-                      <strong style={{ color: 'var(--accent-purple)' }}>
-                        {item.quantity} {item.unit}
-                      </strong>
-                    </label>
-                  ))}
+
+                      {/* Math Result Summary */}
+                      <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                          Calculated Nutrition Results:
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                          <span style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--accent-orange)' }}>
+                            {calculateSelectedNutrition()?.calories} kcal
+                          </span>
+                          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                            P: {calculateSelectedNutrition()?.protein}g | C: {calculateSelectedNutrition()?.carbs}g | F: {calculateSelectedNutrition()?.fat}g
+                          </span>
+                        </div>
+                      </div>
+
+                      <button className="btn-primary" style={{ width: '100%' }} onClick={addCalculatedItemToList}>
+                        Add to Shopping List & Planner
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '1rem', textAlign: 'center', border: '1px dashed var(--glass-border)', borderRadius: 'var(--border-radius-sm)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                      Search and select an ingredient to compute real-time calorie math.
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-secondary)' }}>
-                  <ShoppingCart size={40} style={{ color: 'var(--text-muted)', margin: '0 auto 1rem' }} />
-                  <p style={{ fontSize: '0.9rem' }}>No items in list. Add recipes to your Weekly Planner tab first.</p>
+
+                {/* Database Info Card */}
+                <div className="glass-card" style={{ padding: '1.25rem', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                  💡 <strong>Complete Search Catalog:</strong> Every item used in the platform's recipes is indexable, including raw ingredients (e.g. <i>chicken breast, sweet potato, salmon, olive oil</i>) and snack fruits (<i>apple, banana</i>) with precise USDA calorie math.
                 </div>
-              )}
+              </div>
+
             </div>
           </div>
         )}
 
-      </main>
+      </div>
 
       {/* Global Add to Meal Plan Modal */}
       {showAddToPlanModal && (
@@ -1035,11 +1361,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* Footer */}
-      <footer style={{ padding: '1.5rem 2rem', borderTop: '1px solid var(--glass-border)', textAlign: 'center', background: 'var(--bg-secondary)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-        Prompt2Plate AI Recipe Platform • Designed by Antigravity © 2026
-      </footer>
     </div>
   );
 }

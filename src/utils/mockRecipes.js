@@ -325,3 +325,44 @@ export const mockRecipes = [
     ]
   }
 ];
+
+export const ingredientDatabase = {
+  "chicken breast": { calories: 165, protein: 31, carbs: 0, fat: 3.6, unit: "g", category: "meat" },
+  "gluten-free pasta": { calories: 350, protein: 7, carbs: 75, fat: 1.5, unit: "g", category: "pantry" },
+  "cashew cream": { calories: 180, protein: 3, carbs: 8, fat: 16, unit: "ml", category: "dairy-alternative" },
+  "spinach": { calories: 23, protein: 2.9, carbs: 3.6, fat: 0.4, unit: "g", category: "produce" },
+  "sun-dried tomatoes": { calories: 258, protein: 14, carbs: 56, fat: 3, unit: "g", category: "pantry" },
+  "garlic": { calories: 149, protein: 6.4, carbs: 33, fat: 0.5, unit: "cloves", category: "produce" },
+  "olive oil": { calories: 884, protein: 0, carbs: 0, fat: 100, unit: "ml", category: "pantry" },
+  "salmon": { calories: 206, protein: 22, carbs: 0, fat: 13, unit: "g", category: "meat" },
+  "avocado": { calories: 160, protein: 2, carbs: 8.5, fat: 15, unit: "pc", category: "produce" },
+  "cucumber": { calories: 15, protein: 0.6, carbs: 3.6, fat: 0.1, unit: "pc", category: "produce" },
+  "sesame seeds": { calories: 573, protein: 18, carbs: 23, fat: 50, unit: "g", category: "pantry" },
+  "soy sauce": { calories: 53, protein: 8, carbs: 4.9, fat: 0.6, unit: "ml", category: "pantry" },
+  "quinoa": { calories: 120, protein: 4.4, carbs: 21.3, fat: 1.9, unit: "g", category: "pantry" },
+  "chickpeas": { calories: 164, protein: 8.9, carbs: 27.4, fat: 2.6, unit: "g", category: "pantry" },
+  "sweet potato": { calories: 86, protein: 1.6, carbs: 20, fat: 0.1, unit: "pc", category: "produce" },
+  "tahini": { calories: 595, protein: 17, carbs: 21, fat: 54, unit: "g", category: "pantry" },
+  "lemon juice": { calories: 21, protein: 0.4, carbs: 6.9, fat: 0.2, unit: "ml", category: "produce" },
+  "ribeye steak": { calories: 291, protein: 24, carbs: 0, fat: 22, unit: "g", category: "meat" },
+  "asparagus": { calories: 20, protein: 2.2, carbs: 3.9, fat: 0.1, unit: "g", category: "produce" },
+  "butter": { calories: 717, protein: 0.8, carbs: 0.1, fat: 81, unit: "g", category: "dairy" },
+  "cheese": { calories: 403, protein: 25, carbs: 1.3, fat: 33, unit: "g", category: "dairy" },
+  "eggs": { calories: 155, protein: 13, carbs: 1.1, fat: 11, unit: "pc", category: "dairy" },
+  "rice": { calories: 111, protein: 2.6, carbs: 23, fat: 0.9, unit: "g", category: "pantry" },
+  "greek yogurt": { calories: 97, protein: 9, carbs: 4, fat: 5, unit: "g", category: "dairy" },
+  "almonds": { calories: 579, protein: 21, carbs: 22, fat: 50, unit: "g", category: "pantry" },
+  "apple": { calories: 52, protein: 0.3, carbs: 14, fat: 0.2, unit: "pc", category: "produce" },
+  "banana": { calories: 89, protein: 1.1, carbs: 23, fat: 0.3, unit: "pc", category: "produce" },
+  "onion": { calories: 40, protein: 1.1, carbs: 9.3, fat: 0.1, unit: "pc", category: "produce" },
+  "tomato": { calories: 18, protein: 0.9, carbs: 3.9, fat: 0.2, unit: "pc", category: "produce" },
+  "bell pepper": { calories: 20, protein: 0.9, carbs: 4.6, fat: 0.2, unit: "pc", category: "produce" },
+  "broccoli": { calories: 34, protein: 2.8, carbs: 7, fat: 0.4, unit: "g", category: "produce" },
+  "mushrooms": { calories: 22, protein: 3.1, carbs: 3.3, fat: 0.3, unit: "g", category: "produce" },
+  "carrot": { calories: 41, protein: 0.9, carbs: 9.6, fat: 0.2, unit: "pc", category: "produce" },
+  "milk": { calories: 42, protein: 3.4, carbs: 5, fat: 1, unit: "ml", category: "dairy" },
+  "coconut milk": { calories: 230, protein: 2.3, carbs: 5.5, fat: 24, unit: "ml", category: "dairy-alternative" },
+  "honey": { calories: 304, protein: 0.3, carbs: 82, fat: 0, unit: "g", category: "pantry" },
+  "maple syrup": { calories: 260, protein: 0, carbs: 67, fat: 0, unit: "ml", category: "pantry" }
+};
+
