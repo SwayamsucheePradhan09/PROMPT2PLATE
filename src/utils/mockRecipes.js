@@ -327,6 +327,41 @@ export const mockRecipes = [
 ];
 
 export const ingredientDatabase = {
+  // Indian Cuisines
+  "butter chicken": { calories: 290, protein: 14, carbs: 8, fat: 22, unit: "g", category: "indian" },
+  "paneer tikka": { calories: 220, protein: 12, carbs: 6, fat: 16, unit: "g", category: "indian" },
+  "chicken biryani": { calories: 180, protein: 10, carbs: 24, fat: 5, unit: "g", category: "indian" },
+  "masala dosa": { calories: 170, protein: 3.5, carbs: 29, fat: 4.5, unit: "pc", category: "indian" },
+  "samosa": { calories: 260, protein: 3.5, carbs: 32, fat: 13, unit: "pc", category: "indian" },
+  "naan": { calories: 290, protein: 8, carbs: 52, fat: 6, unit: "pc", category: "indian" },
+  "dal makhani": { calories: 120, protein: 5, carbs: 15, fat: 4.5, unit: "g", category: "indian" },
+  "tandoori chicken": { calories: 150, protein: 22, carbs: 2, fat: 6, unit: "g", category: "indian" },
+  
+  // European / Italian
+  "pizza margherita": { calories: 250, protein: 10, carbs: 30, fat: 10, unit: "g", category: "italian" },
+  "lasagna": { calories: 170, protein: 11, carbs: 14, fat: 8, unit: "g", category: "italian" },
+  "croissant": { calories: 406, protein: 8, carbs: 46, fat: 21, unit: "pc", category: "bakery" },
+  "greek salad": { calories: 115, protein: 2, carbs: 8, fat: 9, unit: "g", category: "greek" },
+  
+  // East Asian
+  "sushi roll": { calories: 140, protein: 3, carbs: 28, fat: 1.5, unit: "g", category: "japanese" },
+  "pad thai": { calories: 180, protein: 6, carbs: 30, fat: 4, unit: "g", category: "thai" },
+  "ramen": { calories: 110, protein: 4.5, carbs: 16, fat: 3.5, unit: "g", category: "japanese" },
+  
+  // Mexican & Latin American
+  "tacos": { calories: 220, protein: 12, carbs: 20, fat: 10, unit: "pc", category: "mexican" },
+  "burrito": { calories: 210, protein: 9, carbs: 26, fat: 8, unit: "g", category: "mexican" },
+  "guacamole": { calories: 157, protein: 2, carbs: 9, fat: 14, unit: "g", category: "mexican" },
+  
+  // Middle Eastern
+  "hummus": { calories: 166, protein: 8, carbs: 14, fat: 10, unit: "g", category: "middle-eastern" },
+  "falafel": { calories: 330, protein: 13, carbs: 32, fat: 18, unit: "g", category: "middle-eastern" },
+  "shawarma": { calories: 220, protein: 15, carbs: 20, fat: 9, unit: "g", category: "middle-eastern" },
+  
+  // American
+  "hamburger": { calories: 250, protein: 13, carbs: 24, fat: 10, unit: "pc", category: "american" },
+  "french fries": { calories: 312, protein: 3.4, carbs: 41, fat: 15, unit: "g", category: "american" },
+
   "paneer": { calories: 360, protein: 18, carbs: 4, fat: 30, unit: "g", category: "dairy" },
   "tofu": { calories: 76, protein: 8, carbs: 1.9, fat: 4.8, unit: "g", category: "dairy-alternative" },
   "chicken breast": { calories: 165, protein: 31, carbs: 0, fat: 3.6, unit: "g", category: "meat" },
