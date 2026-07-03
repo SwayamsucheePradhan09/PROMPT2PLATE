@@ -6,6 +6,60 @@ import {
 } from 'lucide-react';
 import { mockRecipes, ingredientDatabase } from './utils/mockRecipes';
 
+// Helper to calculate calories dynamically based on ingredient name, quantity, and unit
+const getIngredientCalories = (name, quantity, unit) => {
+  const normName = name.toLowerCase().trim();
+  const dbItem = ingredientDatabase[normName];
+  if (!dbItem) return 0;
+
+  let multiplier = 1;
+  const dbUnit = dbItem.unit.toLowerCase();
+  const recipeUnit = (unit || "").toLowerCase();
+
+  if (dbUnit === "g" || dbUnit === "ml") {
+    if (recipeUnit.includes("tbsp") || recipeUnit.includes("tablespoon")) {
+      multiplier = 15;
+    } else if (recipeUnit.includes("tsp") || recipeUnit.includes("teaspoon")) {
+      multiplier = 5;
+    }
+    const totalQty = quantity * multiplier;
+    return Math.round((totalQty / 100) * dbItem.calories);
+  } else {
+    return Math.round(quantity * dbItem.calories);
+  }
+};
+
+// Helper to calculate macros dynamically based on ingredient name, quantity, and unit
+const getIngredientMacros = (name, quantity, unit) => {
+  const normName = name.toLowerCase().trim();
+  const dbItem = ingredientDatabase[normName];
+  if (!dbItem) return { protein: 0, carbs: 0, fat: 0 };
+
+  let multiplier = 1;
+  const dbUnit = dbItem.unit.toLowerCase();
+  const recipeUnit = (unit || "").toLowerCase();
+
+  if (dbUnit === "g" || dbUnit === "ml") {
+    if (recipeUnit.includes("tbsp") || recipeUnit.includes("tablespoon")) {
+      multiplier = 15;
+    } else if (recipeUnit.includes("tsp") || recipeUnit.includes("teaspoon")) {
+      multiplier = 5;
+    }
+    const totalQty = quantity * multiplier;
+    return {
+      protein: (totalQty / 100) * dbItem.protein,
+      carbs: (totalQty / 100) * dbItem.carbs,
+      fat: (totalQty / 100) * dbItem.fat
+    };
+  } else {
+    return {
+      protein: quantity * dbItem.protein,
+      carbs: quantity * dbItem.carbs,
+      fat: quantity * dbItem.fat
+    };
+  }
+};
+
 export default function App() {
   // Authentication State
   const [user, setUser] = useState(null); // Initial state is null (logged out)
@@ -1163,43 +1217,91 @@ export default function App() {
                   </span>
                 </div>
 
-                {getConsolidatedShoppingList().length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {getConsolidatedShoppingList().map((item, index) => (
-                      <label 
-                        key={index} 
-                        className="glass-card" 
-                        style={{ 
-                          padding: '0.75rem 1rem', 
+                {(() => {
+                  const list = getConsolidatedShoppingList();
+                  const listCalories = list.reduce((acc, item) => acc + getIngredientCalories(item.name, item.quantity, item.unit), 0);
+                  const listMacros = list.reduce((acc, item) => {
+                    const macros = getIngredientMacros(item.name, item.quantity, item.unit);
+                    return {
+                      protein: acc.protein + (macros.protein || 0),
+                      carbs: acc.carbs + (macros.carbs || 0),
+                      fat: acc.fat + (macros.fat || 0)
+                    };
+                  }, { protein: 0, carbs: 0, fat: 0 });
+
+                  return (
+                    <>
+                      {list.length > 0 && (
+                        <div style={{ 
                           display: 'flex', 
+                          justifyContent: 'space-between', 
                           alignItems: 'center', 
-                          gap: '1rem', 
-                          cursor: 'pointer',
-                          background: 'transparent'
-                        }}
-                      >
-                        <input type="checkbox" style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--accent-purple)' }} />
-                        <div style={{ flexGrow: 1 }}>
-                          <span style={{ fontSize: '0.9rem', fontWeight: '500', textTransform: 'capitalize' }}>
-                            {item.name}
-                          </span>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                            Category: {item.category.toUpperCase()}
+                          background: 'var(--accent-purple-glow)', 
+                          border: '1px solid hsla(265, 85%, 62%, 0.2)', 
+                          padding: '1rem', 
+                          borderRadius: 'var(--border-radius-sm)', 
+                          marginBottom: '1.5rem' 
+                        }}>
+                          <div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>TOTAL CART CALORIES</div>
+                            <div style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-primary)' }}>{listCalories} kcal</div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>TOTAL CART MACROS</div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: '700' }}>
+                              P: {Math.round(listMacros.protein)}g | C: {Math.round(listMacros.carbs)}g | F: {Math.round(listMacros.fat)}g
+                            </div>
                           </div>
                         </div>
-                        <strong style={{ color: 'var(--accent-purple)', fontSize: '0.9rem' }}>
-                          {item.quantity} {item.unit}
-                        </strong>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-secondary)' }}>
-                    <ShoppingCart size={40} style={{ color: 'var(--text-muted)', margin: '0 auto 1rem' }} />
-                    <p style={{ fontSize: '0.9rem' }}>No items in list. Add recipes to Weekly Planner or search on the right.</p>
-                  </div>
-                )}
-              </div>
+                      )}
+
+                      {list.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          {list.map((item, index) => {
+                            const itemCal = getIngredientCalories(item.name, item.quantity, item.unit);
+                            return (
+                              <label 
+                                key={index} 
+                                className="glass-card" 
+                                style={{ 
+                                  padding: '0.75rem 1rem', 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  gap: '1rem', 
+                                  cursor: 'pointer',
+                                  background: 'transparent'
+                                }}
+                              >
+                                <input type="checkbox" style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--accent-purple)' }} />
+                                <div style={{ flexGrow: 1 }}>
+                                  <span style={{ fontSize: '0.9rem', fontWeight: '500', textTransform: 'capitalize' }}>
+                                    {item.name}
+                                  </span>
+                                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                    Category: {item.category.toUpperCase()}
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
+                                  <strong style={{ color: 'var(--accent-purple)', fontSize: '0.9rem' }}>
+                                    {item.quantity} {item.unit}
+                                  </strong>
+                                  <span className="nutrition-pill" style={{ fontSize: '0.65rem', padding: '0.1rem 0.3rem' }}>
+                                    {itemCal > 0 ? `${itemCal} kcal` : '-- kcal'}
+                                  </span>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-secondary)' }}>
+                          <ShoppingCart size={40} style={{ color: 'var(--text-muted)', margin: '0 auto 1rem' }} />
+                          <p style={{ fontSize: '0.9rem' }}>No items in list. Add recipes to Weekly Planner or search on the right.</p>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}              </div>
 
               {/* Right Side: Dynamic Calorie Search Calculator */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

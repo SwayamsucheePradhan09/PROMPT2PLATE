@@ -327,6 +327,8 @@ export const mockRecipes = [
 ];
 
 export const ingredientDatabase = {
+  "paneer": { calories: 360, protein: 18, carbs: 4, fat: 30, unit: "g", category: "dairy" },
+  "tofu": { calories: 76, protein: 8, carbs: 1.9, fat: 4.8, unit: "g", category: "dairy-alternative" },
   "chicken breast": { calories: 165, protein: 31, carbs: 0, fat: 3.6, unit: "g", category: "meat" },
   "gluten-free pasta": { calories: 350, protein: 7, carbs: 75, fat: 1.5, unit: "g", category: "pantry" },
   "cashew cream": { calories: 180, protein: 3, carbs: 8, fat: 16, unit: "ml", category: "dairy-alternative" },
